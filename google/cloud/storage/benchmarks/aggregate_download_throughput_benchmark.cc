@@ -147,7 +147,7 @@ int main(int argc, char* argv[]) {
   }
   if (options->exit_after_parse) return 1;
 
-  auto client = MakeClient(*options);
+  auto client = gcs::Client{};
   std::vector<gcs::ObjectMetadata> dataset;
   std::uint64_t dataset_size = 0;
   for (auto& o : client.ListObjects(options->bucket_name,
@@ -195,8 +195,8 @@ int main(int argc, char* argv[]) {
             << "\n# Object Count: " << dataset.size()
             << "\n# Dataset size: " << FormatSize(dataset_size) << std::endl;
 
-  auto configs = [](AggregateDownloadThroughputOptions const& options,
-                    gcs::Client const& default_client) {
+  auto configs = [](AggregateDownloadThroughputOptions const& options) {
+    auto default_client = MakeClient(options);
     std::random_device rd;
     std::vector<std::seed_seq::result_type> seeds(options.thread_count);
     std::seed_seq({rd(), rd(), rd()}).generate(seeds.begin(), seeds.end());
@@ -207,7 +207,7 @@ int main(int argc, char* argv[]) {
       config[i].seed = seeds[i];
     }
     return config;
-  }(*options, client);
+  }(*options);
 
   // Create N copies of the object list, this simplifies the rest of the code
   // as we can unnest some loops. Note that we do not copy each object

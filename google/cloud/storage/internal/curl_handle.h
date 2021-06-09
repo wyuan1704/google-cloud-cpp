@@ -42,7 +42,13 @@ class CurlHandle {
   CurlHandle(CurlHandle const&) = delete;
   CurlHandle& operator=(CurlHandle const&) = delete;
 
-  // Allow moves, they immediately disable callbacks.
+  // Allow moves, some care is needed to guarantee the pointers passed to the
+  // libcurl C callbacks (`debug`, and `socket`) are stable.
+  // * For the `debug` callback (used rarely), we use a `std::shared_ptr<>`.
+  // * For the `socket` callback, the only classes that use it are
+  //   `CurlDownloadRequest` and `CurlRequest`.  These classes guarantee the
+  //   object is not move-constructed-from or move-assigned-from once the
+  //   callback is set up.
   CurlHandle(CurlHandle&&) = default;
   CurlHandle& operator=(CurlHandle&&) = default;
 
@@ -100,6 +106,14 @@ class CurlHandle {
   /// Convert a CURLE_* error code to a google::cloud::Status().
   static Status AsStatus(CURLcode e, char const* where);
 
+  struct DebugInfo {
+    std::string buffer;
+    std::uint64_t recv_zero_count = 0;
+    std::uint64_t recv_count = 0;
+    std::uint64_t send_zero_count = 0;
+    std::uint64_t send_count = 0;
+  };
+
  private:
   explicit CurlHandle(CurlPtr ptr) : handle_(std::move(ptr)) {}
 
@@ -122,7 +136,7 @@ class CurlHandle {
   }
 
   CurlPtr handle_;
-  std::string debug_buffer_;
+  std::shared_ptr<DebugInfo> debug_info_;
   SocketOptions socket_options_;
 };
 

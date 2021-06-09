@@ -179,6 +179,8 @@ class CurlRequestBuilder {
     return factory_->LastClientIpAddress();
   }
 
+  std::string const& url() const { return url_; }
+
  private:
   void ValidateBuilderState(char const* where) const;
 

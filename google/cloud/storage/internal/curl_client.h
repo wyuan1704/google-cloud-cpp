@@ -31,6 +31,20 @@ namespace internal {
 class CurlRequestBuilder;
 
 /**
+ * Computes the `Host: ` header given the target URL and service.
+ *
+ * Returns an empty string when the `libcurl` default is appropriate, and the
+ * full header in other cases.  The most common case where the default is not
+ * correct are applications targeting `private.googleapis.com` or
+ * `restricted.googleapis.com`.
+ *
+ * @see https://cloud.google.com/vpc/docs/configure-private-google-access-hybrid
+ * @see
+ * https://cloud.google.com/vpc-service-controls/docs/set-up-private-connectivity
+ */
+std::string HostHeader(std::string const& url, char const* service);
+
+/**
  * Implements the low-level RPCs to Google Cloud Storage using libcurl.
  */
 class CurlClient : public RawClient,
@@ -186,7 +200,8 @@ class CurlClient : public RawClient,
 
  private:
   /// Setup the configuration parameters that do not depend on the request.
-  Status SetupBuilderCommon(CurlRequestBuilder& builder, char const* method);
+  Status SetupBuilderCommon(CurlRequestBuilder& builder, char const* method,
+                            char const* service = "storage");
 
   /// Applies the common configuration parameters to @p builder.
   template <typename Request>
@@ -214,10 +229,8 @@ class CurlClient : public RawClient,
   ClientOptions options_;
   std::string const x_goog_api_client_header_;
   std::string const storage_endpoint_;
-  std::string const storage_host_;
   std::string const upload_endpoint_;
   std::string const xml_endpoint_;
-  std::string const xml_host_;
   std::string const iam_endpoint_;
   bool const xml_enabled_;
 

@@ -16,10 +16,10 @@
 #define GOOGLE_CLOUD_CPP_GOOGLE_CLOUD_STORAGE_BENCHMARKS_THROUGHPUT_RESULT_H
 
 #include "google/cloud/storage/benchmarks/benchmark_utils.h"
-#include <unordered_map>
 #include <chrono>
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 
 namespace google {
 namespace cloud {

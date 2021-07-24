@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Usage: create-becnhmark-vms.sh [options] zones
+# Usage: create-benchmark-vms.sh [options] zones
 #
 #   Options:
 #     --project=<project-id>     The ID (or number) of the project
@@ -94,7 +94,7 @@ if [[ "${SOURCE_IMAGE_FEATURES}" =~ "GVNIC" ]]; then
   IMAGE="${SOURCE_IMAGE}"
   IMAGE_PROJECT="${SOURCE_IMAGE_PROJECT}"
 elif gcloud compute images describe "${IMAGE}" \
-    --project="${GOOGLE_CLOUD_PROJECT}" >/dev/null 2>&1; then
+  --project="${GOOGLE_CLOUD_PROJECT}" >/dev/null 2>&1; then
   echo "vm image (${IMAGE}) already exists"
 else
   gcloud compute images create "${IMAGE}" \

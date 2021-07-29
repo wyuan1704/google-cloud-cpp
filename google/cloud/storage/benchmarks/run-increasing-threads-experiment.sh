@@ -28,17 +28,17 @@ readonly BUCKET="cloud-cpp-testing-coryan-p3rf-${REGION}"
 mkdir -p "${EXPERIMENT}"
 
 readonly ITERATION_COUNT=5
-readonly REPEATS_PER_ITERATION=32
+readonly REPEATS_PER_ITERATION=96
 
 function start_benchmark_instance {
   local -r host="$1"
   local -r bucket="$2"
   local -r task_id="$3"
   local -r task_threads="$4"
-  local -r total_threads="$5"
+  local -r job="$5"
   local -r repeats="$6"
 
-  local -r log="${EXPERIMENT}/${total_threads}-${host}-${task_id}.${API}.txt"
+  local -r log="${EXPERIMENT}/${job}-${host}-${task_id}.${API}.txt"
   echo "${log}"
 
   ssh -A -o "ProxyCommand=corp-ssh-helper %h %p" "${host}" \
@@ -56,50 +56,37 @@ function start_benchmark_instance {
     > "${log}" </dev/null &
 }
 
-readonly SINGLE_PROCESS_HOST="cloud-cpp-bm-01.${REGION}-a.p3rf-gcs"
-function start_single_process_instances {
+function start_multi_host_instances {
   local -r bucket="$1"
   local -r threads="$2"
+  local -r label="$3"
+  shift 3
+  local -a -r hosts=("$@")
+  local host_count
+  host_count="$(printf "%s\n" "${hosts[@]}" | sort -u | wc -l)"
 
-  start_benchmark_instance "${SINGLE_PROCESS_HOST}" "${bucket}" "1-of-1" "${threads}" "${threads}" "${REPEATS_PER_ITERATION}"
+  local -r total="${#hosts[@]}"
+  local -r task_threads=$((threads / total))
+  local -r repeats=$((REPEATS_PER_ITERATION / total))
+  count=1
+  for host in "${hosts[@]}"; do
+    start_benchmark_instance "${host}" "${bucket}" "label-${label}-task-${count}-job-${total}-hosts-${host_count}" "${task_threads}" "${threads}" "${repeats}"
+    count=$((count + 1))
+  done
 }
 
-readonly MULTI_PROCESS_HOST="cloud-cpp-bm-01.${REGION}-a.p3rf-gcs"
-function start_multi_process_instances {
-  local -r bucket="$1"
-  local -r threads="$2"
-
-  local -r task_threads=$((threads / 4))
-  local -r repeats=$((REPEATS_PER_ITERATION / 4))
-  start_benchmark_instance "${MULTI_PROCESS_HOST}" "${bucket}" "1-of-4" "${task_threads}" "${threads}" "${repeats}"
-  start_benchmark_instance "${MULTI_PROCESS_HOST}" "${bucket}" "2-of-4" "${task_threads}" "${threads}" "${repeats}"
-  start_benchmark_instance "${MULTI_PROCESS_HOST}" "${bucket}" "3-of-4" "${task_threads}" "${threads}" "${repeats}"
-  start_benchmark_instance "${MULTI_PROCESS_HOST}" "${bucket}" "4-of-4" "${task_threads}" "${threads}" "${repeats}"
-}
-
-readonly MULTI_HOST_LIST=(
+readonly HOSTS=(
+  "cloud-cpp-bm-01.${REGION}-a.p3rf-gcs"
   "cloud-cpp-bm-02.${REGION}-a.p3rf-gcs"
   "cloud-cpp-bm-03.${REGION}-a.p3rf-gcs"
   "cloud-cpp-bm-04.${REGION}-a.p3rf-gcs"
   "cloud-cpp-bm-05.${REGION}-a.p3rf-gcs"
 )
-function start_multi_host_instances {
-  local -r bucket="$1"
-  local -r threads="$2"
-
-  local -r task_threads=$((threads / 4))
-  local -r repeats=$((REPEATS_PER_ITERATION / 4))
-  count=1
-  for host in "${MULTI_HOST_LIST[@]}"; do
-    start_benchmark_instance "${host}" "${bucket}" "${count}-of-4" "${task_threads}" "${threads}" "${repeats}"
-    count=$((count + 1))
-  done
-}
-
-for total_threads in 16 32 48 64; do
-  start_multi_process_instances "${BUCKET}" "${total_threads}"
-  start_multi_host_instances "${BUCKET}" "${total_threads}"
+for total_threads in 64 48 32 16 8 96 80; do
+  start_multi_host_instances "${BUCKET}" "${total_threads}" "multihost4" "${HOSTS[@]:0:4}"
   wait
-  start_single_process_instances "${BUCKET}" "${total_threads}"
+  start_multi_host_instances "${BUCKET}" "${total_threads}" "singleprocess" "${HOSTS[4]}"
+  start_multi_host_instances "${BUCKET}" "${total_threads}" "singlehost" "${HOSTS[3]}" "${HOSTS[3]}" "${HOSTS[3]}" "${HOSTS[3]}"
+  start_multi_host_instances "${BUCKET}" "${total_threads}" "multihost2" "${HOSTS[@]:0:2}"
   wait
 done

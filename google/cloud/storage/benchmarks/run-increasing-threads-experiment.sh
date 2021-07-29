@@ -64,7 +64,7 @@ function start_single_process_instances {
   start_benchmark_instance "${SINGLE_PROCESS_HOST}" "${bucket}" "1-of-1" "${threads}" "${threads}" "${REPEATS_PER_ITERATION}"
 }
 
-readonly MULTI_PROCESS_HOST="cloud-cpp-bm-02.${REGION}-a.p3rf-gcs"
+readonly MULTI_PROCESS_HOST="cloud-cpp-bm-01.${REGION}-a.p3rf-gcs"
 function start_multi_process_instances {
   local -r bucket="$1"
   local -r threads="$2"
@@ -77,21 +77,29 @@ function start_multi_process_instances {
   start_benchmark_instance "${MULTI_PROCESS_HOST}" "${bucket}" "4-of-4" "${task_threads}" "${threads}" "${repeats}"
 }
 
+readonly MULTI_HOST_LIST=(
+  "cloud-cpp-bm-02.${REGION}-a.p3rf-gcs"
+  "cloud-cpp-bm-03.${REGION}-a.p3rf-gcs"
+  "cloud-cpp-bm-04.${REGION}-a.p3rf-gcs"
+  "cloud-cpp-bm-05.${REGION}-a.p3rf-gcs"
+)
 function start_multi_host_instances {
   local -r bucket="$1"
   local -r threads="$2"
 
   local -r task_threads=$((threads / 4))
   local -r repeats=$((REPEATS_PER_ITERATION / 4))
-  start_benchmark_instance "cloud-cpp-bm-03.${REGION}-a.p3rf-gcs" "${bucket}" "1-of-4" "${task_threads}" "${threads}" "${repeats}"
-  start_benchmark_instance "cloud-cpp-bm-04.${REGION}-a.p3rf-gcs" "${bucket}" "2-of-4" "${task_threads}" "${threads}" "${repeats}"
-  start_benchmark_instance "cloud-cpp-bm-03.${REGION}-a.p3rf-gcs" "${bucket}" "3-of-4" "${task_threads}" "${threads}" "${repeats}"
-  start_benchmark_instance "cloud-cpp-bm-04.${REGION}-a.p3rf-gcs" "${bucket}" "4-of-4" "${task_threads}" "${threads}" "${repeats}"
+  count=1
+  for host in "${MULTI_HOST_LIST[@]}"; do
+    start_benchmark_instance "${host}" "${bucket}" "${count}-of-4" "${task_threads}" "${threads}" "${repeats}"
+    count=$((count + 1))
+  done
 }
 
 for total_threads in 16 32 48 64; do
-  start_single_process_instances "${BUCKET}" "${total_threads}"
   start_multi_process_instances "${BUCKET}" "${total_threads}"
   start_multi_host_instances "${BUCKET}" "${total_threads}"
+  wait
+  start_single_process_instances "${BUCKET}" "${total_threads}"
   wait
 done

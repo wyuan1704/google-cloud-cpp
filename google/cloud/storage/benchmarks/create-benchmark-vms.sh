@@ -28,7 +28,7 @@ set -eu
 
 function print_usage() {
   # Extracts the usage from the file comment starting at line 17.
-  sed -n '16,/^$/s/^# \?//p' "$0"
+  sed -n '17,/^$/s/^# \?//p' "$0"
 }
 
 # Use getopt to parse and normalize all the args.

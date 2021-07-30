@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Usage: run-increasing-threads-experiment.sh [options] api...
+# Usage: run-increasing-threads-experiment.sh [options] host:api [host:api...]
 #
 #   Options:
 #     --project=project         The project hosting the VMs and buckets
@@ -27,6 +27,9 @@
 #     --iteration-count=n       Number of iterations in each run
 #     --repeats-per-iteration=n Repeat the download `n` times in each
 #                               iteration
+#     --task-threads=n          Number of threads in each task (aka processes)
+#     --task-count=n            Number of tasks (aka processes). Sometimes this
+#                               is called the job size
 #     -h|--help                 Print this help message
 #
 
@@ -40,7 +43,7 @@ function print_usage() {
 # Use getopt to parse and normalize all the args.
 PARSED="$(getopt -a \
   --options="h" \
-  --longoptions="project:,zone:,iteration-count:,repeats-per-iteration:,help" \
+  --longoptions="project:,zone:,iteration-count:,repeats-per-iteration:,task-threads:,task-count:,ssh-delay:,help" \
   --name="$(basename "$0")" \
   -- "$@")"
 eval set -- "${PARSED}"
@@ -51,6 +54,9 @@ BUCKET=""
 DATASET_PREFIX="dataset-with-10-objects-of-1GiB/"
 ITERATION_COUNT=2
 REPEATS_PER_ITERATION=100
+TASK_THREADS=4
+TASK_COUNT=4
+SSH_DELAY=0.5
 
 while true; do
   case "$1" in
@@ -78,6 +84,18 @@ while true; do
     REPEATS_PER_ITERATION="$2"
     shift 2
     ;;
+  --task-threads)
+    TASK_THREADS="$2"
+    shift 2
+    ;;
+  --task-count)
+    TASK_COUNT="$2"
+    shift 2
+    ;;
+  --ssh-delay)
+    SSH_DELAY="$2"
+    shift 2
+    ;;
   -h | --help)
     print_usage
     exit 0
@@ -95,22 +113,17 @@ if [[ $# -eq 0 ]]; then
   exit 1
 fi
 
-readonly APIS=("${@}")
+readonly RUNS=("${@}")
 readonly ZONE
+readonly DATASET_PREFIX
 readonly ITERATION_COUNT
 readonly REPEATS_PER_ITERATION
-readonly DATASET_PREFIX
+readonly TASK_THREADS
+readonly TASK_COUNT
 
 FULL_REGION="$(gcloud compute zones describe --project="${PROJECT}" "${ZONE}" --format="value(region)")"
 readonly FULL_REGION
 readonly REGION="${FULL_REGION##*/}"
-
-readarray -t HOSTS < <(gcloud compute instances list --project="${PROJECT}" --zones="${ZONE}" --filter=name:cloud-cpp-bm --format='value(name)')
-readonly HOSTS
-if [[ "${#HOSTS[@]}" -lt 5 ]]; then
-  echo "This program requires at least 5 VMs in the ${ZONE} zone"
-  exit 1
-fi
 
 if [[ -z "${BUCKET}" ]]; then
   BUCKET="cloud-cpp-testing-coryan-p3rf-${REGION}"
@@ -118,17 +131,19 @@ fi
 readonly BUCKET
 
 # TODO(coryan) - cleanup debugging
-echo "APIS=" "${APIS[@]}"
-echo "HOSTS=" "${HOSTS[@]}"
+echo "RUNS=" "${RUNS[@]}"
 echo "ZONE=${ZONE}"
-echo "ITERATION_COUNT=${ITERATION_COUNT}"
-echo "REPEATS_PER_ITERATION=${REPEATS_PER_ITERATION}"
 echo "DATASET_PREFIX=${DATASET_PREFIX}"
 echo "FULL_REGION=${FULL_REGION}"
 echo "REGION=${REGION}"
 echo "BUCKET=${BUCKET}"
+echo "ITERATION_COUNT=${ITERATION_COUNT}"
+echo "REPEATS_PER_ITERATION=${REPEATS_PER_ITERATION}"
+echo "TASK_THREADS=${TASK_THREADS}"
+echo "TASK_COUNT=${TASK_COUNT}"
+echo "SSH_DELAY=${SSH_DELAY}"
 
-readonly EXPERIMENT="${HOME}/benchmarks/increasing-threads"
+readonly EXPERIMENT="${HOME}/benchmarks/max-throughput/${ZONE}"
 mkdir -p "${EXPERIMENT}"
 
 function start_benchmark_instance {
@@ -136,7 +151,8 @@ function start_benchmark_instance {
   local -r task_threads="$2"
   local -r repeats="$3"
   local -r api="$4"
-  local -r labels="$5"
+  local -r grpc_config="$5"
+  local -r labels="$6"
 
   local job="${labels//,/-}"
   job="${job//:/-}"
@@ -149,109 +165,39 @@ function start_benchmark_instance {
       gcr.io/p3rf-gcs/cloud-cpp-storage-benchmarks:latest \
       /r/aggregate_throughput_benchmark \
         --client-per-thread="true" \
-        --grpc-channel-count="2" \
-        --grpc-plugin-config="dp" \
+        --grpc-channel-count="1" \
         --rest-http-version="1.1" \
         --bucket-name="${BUCKET}" \
         --object-prefix="${DATASET_PREFIX}" \
         --iteration-count="${ITERATION_COUNT}" \
         --labels="${labels},host:${host},zone:${ZONE}" \
         --api="${api}" \
+        --grpc-plugin-config="${grpc_config}" \
         --repeats-per-iteration="${repeats}" \
         --thread-count="${task_threads}" \
     > "${log}" </dev/null &
 }
 
-function start_multi_host_instances {
-  local -r task_threads="$1"
-  local -r label="$2"
-  local -r api="$3"
-  shift 3
-  local -a -r hosts=("$@")
-  local host_count
-  host_count="$(printf "%s\n" "${hosts[@]}" | sort -u | wc -l)"
-
-  local -r job_size="${#hosts[@]}"
-  local repeats=$((REPEATS_PER_ITERATION / job_size))
+function main {
+  local repeats=$((REPEATS_PER_ITERATION / TASK_COUNT))
   if [[ ${repeats} -eq 0 ]]; then repeats=1; fi
-  local count=1
-  last_host=""
-  for host in "${hosts[@]}"; do
-    start_benchmark_instance "${host}" "${task_threads}" "${repeats}" "${api}" \
-      "scenario:${label},task:${count},job-size:${job_size},host-count:${host_count}"
-    # Avoid SSH failures
-    [[ "${last_host}" != "${host}" ]] || sleep 2
-    last_host="${host}"
-    count=$((count + 1))
+  readonly repeats
+  local -r size=$((TASK_THREADS * TASK_COUNT))
+  local i
+
+  for i in $(seq 1 "${TASK_COUNT}"); do
+    for run in "${RUNS[@]}"; do
+      local host="${run%%:*}"
+      local config="${run##*:}"
+      local api="${config%%/*}"
+      local grpc_config="${config##*/}"
+      if [[ -z "${grpc_config}" ]]; then grpc_config="dp"; fi
+      start_benchmark_instance "${host}" "${TASK_THREADS}" "${repeats}" "${api}" "${grpc_config}" \
+          "max-throughput:${size},task:${i},task-count:${TASK_COUNT},host-count:1"
+      sleep "${SSH_DELAY}"
+    done
   done
+  wait
 }
 
-for api in "${APIS[@]}"; do
-  count=0
-  for task_threads in 64 8 56 16; do
-    host="${HOSTS[$count]}"
-    start_multi_host_instances "${task_threads}" \
-      "singleprocess:${task_threads}" "${api}" "${host}"
-    count=$((count + 1))
-  done
-  wait
-done
-
-for api in "${APIS[@]}"; do
-  count=0
-  for task_threads in 48 24 40 32; do
-    host="${HOSTS[$count]}"
-    start_multi_host_instances "${task_threads}" \
-      "singleprocess:${task_threads}" "${api}" "${host}"
-    count=$((count + 1))
-  done
-  wait
-done
-
-for api in "${APIS[@]}"; do
-  for host_threads in 64 8 56 16; do
-    count=0
-    for task_threads in 8 4; do
-      process_count=$((host_threads / task_threads))
-      host="${HOSTS[$count]}"
-      list=()
-      for _ in $(seq 1 ${process_count}); do list+=("${host}"); done
-      start_multi_host_instances "${task_threads}" \
-        "singlehost:${task_threads}" "${api}" "${list[@]}"
-      count=$((count + 1))
-      wait
-    done
-  done
-done
-
-for api in "${APIS[@]}"; do
-  for host_threads in 48 24 40 32; do
-    count=0
-    for task_threads in 8 4; do
-      process_count=$((host_threads / task_threads))
-      host="${HOSTS[$count]}"
-      list=()
-      for _ in $(seq 1 ${process_count}); do list+=("${host}"); done
-      start_multi_host_instances "${task_threads}" \
-        "singlehost:${task_threads}" "${api}" "${list[@]}"
-      count=$((count + 1))
-      wait
-    done
-  done
-done
-
-#for task_threads in 16 12 10 8; do
-#  for api in "${APIS[@]}"; do
-#    start_multi_host_instances "${task_threads}" \
-#      "multihost:${task_threads}" "${api}" "${HOSTS[@]:0:4}"
-#    wait
-#  done
-#done
-
-#for task_threads in 6 4 2; do
-#  for api in "${APIS[@]}"; do
-#    start_multi_host_instances "${task_threads}" \
-#      "multihost:${task_threads}" "${api}" "${HOSTS[@]:0:4}"
-#    wait
-#  done
-#done
+main

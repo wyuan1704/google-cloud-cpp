@@ -162,11 +162,14 @@ function start_benchmark_instance {
   ssh -A -o "ProxyCommand=corp-ssh-helper %h %p" "${host}.${ZONE}.${PROJECT}" \
     docker run \
       --network=host --pull always --rm \
+      --env CLOUD_STORAGE_ENABLE_TRACING="raw-client" \
+      --env GOOGLE_CLOUD_CPP_EXPERIMENTAL_LOG_CONFIG="lastN,128000,WARNING" \
       gcr.io/p3rf-gcs/cloud-cpp-storage-benchmarks:latest \
       /r/aggregate_throughput_benchmark \
         --client-per-thread="true" \
         --grpc-channel-count="1" \
         --rest-http-version="1.1" \
+        --download-stall-timeout="300s" \
         --bucket-name="${BUCKET}" \
         --object-prefix="${DATASET_PREFIX}" \
         --iteration-count="${ITERATION_COUNT}" \
@@ -175,7 +178,7 @@ function start_benchmark_instance {
         --grpc-plugin-config="${grpc_config}" \
         --repeats-per-iteration="${repeats}" \
         --thread-count="${task_threads}" \
-    > "${log}" </dev/null &
+    > "${log}" 2>"${log}.log" </dev/null &
 }
 
 function main {

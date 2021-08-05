@@ -31,18 +31,6 @@ inline namespace STORAGE_CLIENT_NS {
 namespace internal {
 namespace {
 
-extern "C" void CurlShareLockCallback(CURL*, curl_lock_data data,
-                                      curl_lock_access, void* userptr) {
-  auto* client = reinterpret_cast<CurlClient*>(userptr);
-  client->LockShared(data);
-}
-
-extern "C" void CurlShareUnlockCallback(CURL*, curl_lock_data data,
-                                        void* userptr) {
-  auto* client = reinterpret_cast<CurlClient*>(userptr);
-  client->UnlockShared(data);
-}
-
 std::shared_ptr<CurlHandleFactory> CreateHandleFactory(
     ClientOptions const& options) {
   if (options.connection_pool_size() == 0) {
@@ -256,7 +244,6 @@ CurlClient::CreateResumableSessionGeneric(RequestType const& request) {
 
 CurlClient::CurlClient(ClientOptions options)
     : options_(std::move(options)),
-      share_(curl_share_init(), &curl_share_cleanup),
       generator_(google::cloud::internal::MakeDefaultPRNG()),
       storage_factory_(CreateHandleFactory(options_)),
       upload_factory_(CreateHandleFactory(options_)),
@@ -277,17 +264,6 @@ CurlClient::CurlClient(ClientOptions options)
     xml_upload_endpoint_ = "https://storage-upload.googleapis.com";
     xml_download_endpoint_ = "https://storage-download.googleapis.com";
   }
-
-  curl_share_setopt(share_.get(), CURLSHOPT_LOCKFUNC, CurlShareLockCallback);
-  curl_share_setopt(share_.get(), CURLSHOPT_UNLOCKFUNC,
-                    CurlShareUnlockCallback);
-  curl_share_setopt(share_.get(), CURLSHOPT_USERDATA, this);
-  curl_share_setopt(share_.get(), CURLSHOPT_SHARE, CURL_LOCK_DATA_CONNECT);
-  curl_share_setopt(share_.get(), CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
-  curl_share_setopt(share_.get(), CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
-#if LIBCURL_VERSION_NUM >= 0x076100
-  curl_share_setopt(share_.get(), CURLSHOPT_SHARE, CURL_LOCK_DATA_PSL);
-#endif  // LIBCURL_VERSION_NUM
 
   CurlInitializeOnce(options);
 }
@@ -1184,64 +1160,6 @@ StatusOr<EmptyResponse> CurlClient::DeleteNotification(
     return status;
   }
   return ReturnEmptyResponse(builder.BuildRequest().MakeRequest(std::string{}));
-}
-
-void CurlClient::LockShared(curl_lock_data data) {
-  switch (data) {
-    case CURL_LOCK_DATA_SHARE:
-      mu_share_.lock();
-      return;
-    case CURL_LOCK_DATA_DNS:
-      mu_dns_.lock();
-      return;
-    case CURL_LOCK_DATA_SSL_SESSION:
-      mu_ssl_session_.lock();
-      return;
-    case CURL_LOCK_DATA_CONNECT:
-      mu_connect_.lock();
-      return;
-#if LIBCURL_VERSION_NUM >= 0x076100
-    case CURL_LOCK_DATA_PSL:
-      mu_psl_.lock();
-      return;
-#endif  // LIBCURL_VERSION_NUM
-    default:
-      // We use a default because different versions of libcurl have different
-      // values in the `curl_lock_data` enum.
-      break;
-  }
-  std::ostringstream os;
-  os << __func__ << "() - invalid or unknown data argument=" << data;
-  google::cloud::Terminate(os.str().c_str());
-}
-
-void CurlClient::UnlockShared(curl_lock_data data) {
-  switch (data) {
-    case CURL_LOCK_DATA_SHARE:
-      mu_share_.unlock();
-      return;
-    case CURL_LOCK_DATA_DNS:
-      mu_dns_.unlock();
-      return;
-    case CURL_LOCK_DATA_SSL_SESSION:
-      mu_ssl_session_.unlock();
-      return;
-    case CURL_LOCK_DATA_CONNECT:
-      mu_connect_.unlock();
-      return;
-#if LIBCURL_VERSION_NUM >= 0x076100
-    case CURL_LOCK_DATA_PSL:
-      mu_psl_.unlock();
-      return;
-#endif  // LIBCURL_VERSION_NUM
-    default:
-      // We use a default because different versions of libcurl have different
-      // values in the `curl_lock_data` enum.
-      break;
-  }
-  std::ostringstream os;
-  os << __func__ << "() - invalid or unknown data argument=" << data;
-  google::cloud::Terminate(os.str().c_str());
 }
 
 StatusOr<ObjectMetadata> CurlClient::InsertObjectMediaXml(

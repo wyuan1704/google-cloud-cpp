@@ -177,9 +177,6 @@ class CurlClient : public RawClient,
   StatusOr<EmptyResponse> DeleteNotification(
       DeleteNotificationRequest const&) override;
 
-  void LockShared(curl_lock_data data);
-  void UnlockShared(curl_lock_data data);
-
  protected:
   // The constructor is private because the class must always be created
   // as a shared_ptr<>.
@@ -218,14 +215,6 @@ class CurlClient : public RawClient,
   std::string xml_upload_endpoint_;
   std::string xml_download_endpoint_;
   std::string iam_endpoint_;
-
-  // These mutexes are used to protect different portions of `share_`.
-  std::mutex mu_share_;
-  std::mutex mu_dns_;
-  std::mutex mu_ssl_session_;
-  std::mutex mu_connect_;
-  std::mutex mu_psl_;
-  CurlShare share_;
 
   std::mutex mu_;
   google::cloud::internal::DefaultPRNG generator_;  // GUARDED_BY(mu_);

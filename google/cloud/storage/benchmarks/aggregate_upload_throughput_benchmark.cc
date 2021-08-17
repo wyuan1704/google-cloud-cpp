@@ -73,7 +73,8 @@ class UploadIteration {
         options_(std::move(options)),
         remaining_objects_(std::move(object_names)) {}
 
-  TaskResult UploadTask(TaskConfig const& config);
+  TaskResult UploadTask(TaskConfig const& config,
+                        std::string const& write_block);
 
  private:
   std::mutex mu_;
@@ -165,6 +166,17 @@ int main(int argc, char* argv[]) {
     return options->object_prefix +
            gcs_bm::MakeRandomObjectName(generator).substr(0, 32);
   });
+  auto const write_block = [&] {
+    std::string block;
+    std::int64_t lineno = 0;
+    while (block.size() <
+           static_cast<std::size_t>(options->resumable_upload_chunk_size)) {
+      auto header = absl::StrFormat("%09d", lineno++);
+      block += header;
+      block += gcs_bm::MakeRandomData(generator, 128 - header.size());
+    }
+    return block;
+  }();
 
   auto accumulate_bytes_uploaded = [](std::vector<TaskResult> const& r) {
     return std::accumulate(r.begin(), r.end(), std::int64_t{0},
@@ -189,8 +201,8 @@ int main(int argc, char* argv[]) {
   for (int i = 0; i != options->iteration_count; ++i) {
     auto timer = Timer::PerProcess();
     UploadIteration iteration(i, *options, object_names);
-    auto task = [&iteration](TaskConfig const& c) {
-      return iteration.UploadTask(c);
+    auto task = [&iteration, &write_block](TaskConfig const& c) {
+      return iteration.UploadTask(c, write_block);
     };
     std::vector<std::future<TaskResult>> tasks(configs.size());
     std::transform(configs.begin(), configs.end(), tasks.begin(),
@@ -219,7 +231,7 @@ int main(int argc, char* argv[]) {
     // the benchmark in the middle and still get some data.
     for (auto const& r : iteration_results) {
       for (auto const& d : r.details) {
-        // Join the iteration details with the per-download details. That makes
+        // Join the iteration details with the per-upload details. That makes
         // it easier to analyze the data in external scripts.
         std::cout << labels                                       //
                   << ',' << d.iteration                           //
@@ -248,7 +260,7 @@ int main(int argc, char* argv[]) {
     // the operator of these benchmarks (coryan@) is an impatient person.
     auto const bandwidth =
         FormatBandwidthGbPerSecond(uploaded_bytes, usage.elapsed_time);
-    std::cout << "# " << current_time() << " downloaded=" << uploaded_bytes
+    std::cout << "# " << current_time() << " uploaded=" << uploaded_bytes
               << " cpu_time=" << absl::FromChrono(usage.cpu_time)
               << " elapsed_time=" << absl::FromChrono(usage.elapsed_time)
               << " Gbit/s=" << bandwidth << std::endl;
@@ -304,21 +316,10 @@ UploadDetail UploadOneObject(gcs::Client& client, std::mt19937_64& generator,
                       stream.metadata().status()};
 }
 
-TaskResult UploadIteration::UploadTask(TaskConfig const& config) {
+TaskResult UploadIteration::UploadTask(TaskConfig const& config,
+                                       std::string const& write_block) {
   auto client = config.client;
   auto generator = std::mt19937_64(config.seed);
-
-  auto const write_block = [&, this] {
-    std::string block;
-    std::int64_t lineno = 0;
-    while (block.size() <
-           static_cast<std::size_t>(options_.resumable_upload_chunk_size)) {
-      auto header = absl::StrFormat("%09d", lineno++);
-      block += header;
-      block += gcs_bm::MakeRandomData(generator, 128 - header.size());
-    }
-    return block;
-  }();
 
   TaskResult result;
   while (true) {

@@ -165,7 +165,7 @@ function start_benchmark_instance {
       --env CLOUD_STORAGE_ENABLE_TRACING="raw-client" \
       --env GOOGLE_CLOUD_CPP_EXPERIMENTAL_LOG_CONFIG="lastN,128000,WARNING" \
       gcr.io/p3rf-gcs/cloud-cpp-storage-benchmarks:latest \
-      /r/aggregate_throughput_benchmark \
+      /r/aggregate_download_throughput_benchmark \
         --client-per-thread="true" \
         --grpc-channel-count="1" \
         --rest-http-version="1.1" \

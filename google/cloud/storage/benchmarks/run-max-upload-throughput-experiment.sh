@@ -172,10 +172,10 @@ function start_benchmark_instance {
         --object-prefix="${DATASET_PREFIX}" \
         --object-count="${object_count}" \
         --iteration-count="${ITERATION_COUNT}" \
-        --minimum-object-size=64MiB \
-        --maximum-object-size=64MiB \
+        --minimum-object-size=1GiB \
+        --maximum-object-size=1GiB \
         --use-resumable-upload=true \
-        --resumable-upload-chunk-size=64MiB \
+        --resumable-upload-chunk-size=256MiB \
         --labels="${labels},host:${host},zone:${ZONE}" \
         --api="${api}" \
         --grpc-plugin-config="${grpc_config}" \

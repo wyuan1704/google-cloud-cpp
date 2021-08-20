@@ -116,7 +116,7 @@ readonly RUNS=("${@}")
 readonly ZONE
 readonly DATASET_PREFIX
 readonly ITERATION_COUNT
-readonly REPEATS_PER_ITERATION
+readonly OBJECT_COUNT
 readonly TASK_THREADS
 readonly TASK_COUNT
 
@@ -161,8 +161,8 @@ function start_benchmark_instance {
   ssh -A -o "ProxyCommand=corp-ssh-helper %h %p" "${host}.${ZONE}.${PROJECT}" \
     docker run \
       --network=host --pull always --rm \
-      --env CLOUD_STORAGE_ENABLE_TRACING="raw-client" \
-      --env GOOGLE_CLOUD_CPP_EXPERIMENTAL_LOG_CONFIG="lastN,128000,WARNING" \
+      --env XCLOUD_STORAGE_ENABLE_TRACING="raw-client" \
+      --env XGOOGLE_CLOUD_CPP_EXPERIMENTAL_LOG_CONFIG="lastN,128000,WARNING" \
       gcr.io/p3rf-gcs/cloud-cpp-storage-benchmarks:latest \
       /r/aggregate_upload_throughput_benchmark \
         --client-per-thread="true" \
@@ -172,10 +172,10 @@ function start_benchmark_instance {
         --object-prefix="${DATASET_PREFIX}" \
         --object-count="${object_count}" \
         --iteration-count="${ITERATION_COUNT}" \
-        --minimum-object-size=1GiB \
-        --maximum-object-size=1GiB \
+        --minimum-object-size=256MiB \
+        --maximum-object-size=256MiB \
         --use-resumable-upload=true \
-        --resumable-upload-chunk-size=256MiB \
+        --resumable-upload-chunk-size=64MiB \
         --labels="${labels},host:${host},zone:${ZONE}" \
         --api="${api}" \
         --grpc-plugin-config="${grpc_config}" \

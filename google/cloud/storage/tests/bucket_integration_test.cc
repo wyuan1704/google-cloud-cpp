@@ -38,6 +38,7 @@ using ::google::cloud::testing_util::IsOk;
 using ::testing::Contains;
 using ::testing::HasSubstr;
 using ::testing::Not;
+using ::testing::UnorderedElementsAre;
 using ::testing::UnorderedElementsAreArray;
 
 class BucketIntegrationTest
@@ -211,6 +212,31 @@ TEST_F(BucketIntegrationTest, CreatePredefinedDefaultObjectAcl) {
     // Wait at least 2 seconds before trying to create / delete another bucket.
     if (!UsingEmulator()) std::this_thread::sleep_for(std::chrono::seconds(2));
   }
+}
+
+// @test Verify that we can create buckets with a CDR.
+TEST_F(BucketIntegrationTest, CreateCustomDualRegions) {
+  std::string bucket_name = MakeRandomBucketName();
+  StatusOr<Client> client = MakeIntegrationTestClient();
+  ASSERT_STATUS_OK(client);
+
+  auto insert_meta = client->CreateBucketForProject(
+      bucket_name, project_id_,
+      BucketMetadata()
+          .set_custom_placement_config(
+              CustomPlacementConfig{{"US-EAST1", "US-WEST1"}})
+          .set_storage_class("STANDARD"),
+      PredefinedAcl("private"), PredefinedDefaultObjectAcl("projectPrivate"),
+      Projection("full"));
+  ASSERT_STATUS_OK(insert_meta);
+  ScheduleForDelete(*insert_meta);
+
+  ASSERT_TRUE(insert_meta->has_custom_placement_config());
+  EXPECT_THAT(insert_meta->custom_placement_config().data_locations,
+              UnorderedElementsAre("US-EAST1", "US-WEST1"));
+
+  auto status = client->DeleteBucket(bucket_name);
+  ASSERT_STATUS_OK(status);
 }
 
 TEST_F(BucketIntegrationTest, PatchLifecycleConditions) {

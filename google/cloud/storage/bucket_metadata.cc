@@ -42,6 +42,11 @@ std::ostream& operator<<(std::ostream& os, CorsEntry const& rhs) {
             << absl::StrJoin(rhs.response_header, ", ") << "]}";
 }
 
+std::ostream& operator<<(std::ostream& os, CustomPlacementConfig const& rhs) {
+  return os << "CustomPlacementConfig={data_locations=["
+            << absl::StrJoin(rhs.data_locations, ", ") << "]}";
+}
+
 std::ostream& operator<<(std::ostream& os,
                          UniformBucketLevelAccess const& rhs) {
   google::cloud::internal::IosFlagsSaver save_format(os);
@@ -82,6 +87,7 @@ bool operator==(BucketMetadata const& lhs, BucketMetadata const& rhs) {
              rhs &&
          lhs.acl_ == rhs.acl_ && lhs.billing_ == rhs.billing_ &&
          lhs.cors_ == rhs.cors_ &&
+         lhs.custom_placement_config_ == rhs.custom_placement_config_ &&
          lhs.default_event_based_hold_ == rhs.default_event_based_hold_ &&
          lhs.default_acl_ == rhs.default_acl_ &&
          lhs.encryption_ == rhs.encryption_ &&
@@ -113,6 +119,10 @@ std::ostream& operator<<(std::ostream& os, BucketMetadata const& rhs) {
   os << ", cors=[";
   os << absl::StrJoin(rhs.cors(), ", ", absl::StreamFormatter());
   os << "]";
+
+  if (rhs.has_custom_placement_config()) {
+    os << ", custom_placement_config=" << rhs.custom_placement_config();
+  }
 
   os << ", default_event_based_hold=" << std::boolalpha
      << rhs.default_event_based_hold();

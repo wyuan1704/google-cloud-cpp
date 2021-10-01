@@ -137,6 +137,50 @@ inline bool operator>=(CorsEntry const& lhs, CorsEntry const& rhs) {
 std::ostream& operator<<(std::ostream& os, CorsEntry const& rhs);
 
 /**
+ * The metadata object for custom placement (data location) configuration.
+ *
+ * @see https://cloud.google.com/storage/docs/locations
+ */
+struct CustomPlacementConfig {
+  std::vector<std::string> data_locations;
+};
+
+//@{
+/// @name Comparison operators CustomPlacementConfig.
+inline bool operator==(CustomPlacementConfig const& lhs,
+                       CustomPlacementConfig const& rhs) {
+  return lhs.data_locations == rhs.data_locations;
+}
+
+inline bool operator<(CustomPlacementConfig const& lhs,
+                      CustomPlacementConfig const& rhs) {
+  return lhs.data_locations < rhs.data_locations;
+}
+
+inline bool operator!=(CustomPlacementConfig const& lhs,
+                       CustomPlacementConfig const& rhs) {
+  return std::rel_ops::operator!=(lhs, rhs);
+}
+
+inline bool operator>(CustomPlacementConfig const& lhs,
+                      CustomPlacementConfig const& rhs) {
+  return std::rel_ops::operator>(lhs, rhs);
+}
+
+inline bool operator<=(CustomPlacementConfig const& lhs,
+                       CustomPlacementConfig const& rhs) {
+  return std::rel_ops::operator<=(lhs, rhs);
+}
+
+inline bool operator>=(CustomPlacementConfig const& lhs,
+                       CustomPlacementConfig const& rhs) {
+  return std::rel_ops::operator>=(lhs, rhs);
+}
+//@}
+
+std::ostream& operator<<(std::ostream& os, CustomPlacementConfig const& rhs);
+
+/**
  * Configure if only the IAM policies are used for access control.
  *
  * @see Before enabling Uniform Bucket Level Access please
@@ -566,6 +610,31 @@ class BucketMetadata : private internal::CommonMetadata<BucketMetadata> {
 
   //@{
   /**
+   * @name Get and set custom location configuration for the Bucket.
+   *
+   */
+  bool has_custom_placement_config() const {
+    return custom_placement_config_.has_value();
+  }
+  CustomPlacementConfig const& custom_placement_config() const {
+    return *custom_placement_config_;
+  }
+  absl::optional<CustomPlacementConfig> const&
+  custom_placement_config_as_optional() const {
+    return custom_placement_config_;
+  }
+  BucketMetadata& set_custom_placement_config(CustomPlacementConfig v) {
+    custom_placement_config_ = std::move(v);
+    return *this;
+  }
+  BucketMetadata& reset_custom_placement_config() {
+    custom_placement_config_.reset();
+    return *this;
+  }
+  //@}
+
+  //@{
+  /**
    * @name Get and set the default event based hold for the Bucket.
    *
    * Objects may have an event-based hold associated with them. If a Bucket
@@ -896,6 +965,7 @@ class BucketMetadata : private internal::CommonMetadata<BucketMetadata> {
   // Keep the fields in alphabetical order.
   std::vector<BucketAccessControl> acl_;
   absl::optional<BucketBilling> billing_;
+  absl::optional<CustomPlacementConfig> custom_placement_config_;
   std::vector<CorsEntry> cors_;
   bool default_event_based_hold_ = false;
   std::vector<ObjectAccessControl> default_acl_;
@@ -947,6 +1017,9 @@ class BucketMetadataPatchBuilder {
 
   BucketMetadataPatchBuilder& SetCors(std::vector<CorsEntry> const& v);
   BucketMetadataPatchBuilder& ResetCors();
+
+  // At this time, CustomPlacementConfig cannot be changed one the bucket is
+  // created. Therefore we do not support changes via the `patch` API.
 
   BucketMetadataPatchBuilder& SetDefaultEventBasedHold(bool v);
   BucketMetadataPatchBuilder& ResetDefaultEventBasedHold();

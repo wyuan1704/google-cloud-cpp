@@ -30,6 +30,7 @@ namespace storage {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 namespace {
 
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Not;
 
@@ -81,6 +82,9 @@ BucketMetadata CreateBucketMetadataForTest() {
         "origin": ["another-example.com"],
         "responseHeader": ["Content-Type"]
       }],
+      "customPlacementConfig": {
+        "dataLocations": ["US-EAST1", "US-WEST1"]
+      },
       "defaultEventBasedHold": true,
       "defaultObjectAcl": [{
         "kind": "storage#objectAccessControl",
@@ -182,6 +186,9 @@ TEST(BucketMetadataTest, Parse) {
   auto expected_cors_1 =
       CorsEntry{{}, {"GET", "HEAD"}, {"another-example.com"}, {"Content-Type"}};
   EXPECT_EQ(expected_cors_1, actual.cors().at(1));
+  ASSERT_TRUE(actual.has_custom_placement_config());
+  EXPECT_THAT(actual.custom_placement_config().data_locations,
+              ElementsAre("US-EAST1", "US-WEST1"));
   EXPECT_TRUE(actual.default_event_based_hold());
   EXPECT_EQ(1, actual.default_acl().size());
   EXPECT_EQ("user-test-user-3", actual.default_acl().at(0).entity());
@@ -298,9 +305,8 @@ TEST(BucketMetadataTest, IOStream) {
   // bucket()
   EXPECT_THAT(actual, HasSubstr("bucket=test-bucket"));
 
-  // labels()
-  EXPECT_THAT(actual, HasSubstr("labels.label-key-1=label-value-1"));
-  EXPECT_THAT(actual, HasSubstr("labels.label-key-2=label-value-2"));
+  // custom_placement_config()
+  EXPECT_THAT(actual, HasSubstr("data_locations=[US-EAST1, US-WEST1]"));
 
   // default_event_based_hold()
   EXPECT_THAT(actual, HasSubstr("default_event_based_hold=true"));
@@ -317,6 +323,10 @@ TEST(BucketMetadataTest, IOStream) {
   EXPECT_THAT(actual, HasSubstr("BucketIamConfiguration={"));
   EXPECT_THAT(actual, HasSubstr("locked_time=2020-01-02T03:04:05Z"));
   EXPECT_THAT(actual, HasSubstr("public_access_prevention=inherited"));
+
+  // labels()
+  EXPECT_THAT(actual, HasSubstr("labels.label-key-1=label-value-1"));
+  EXPECT_THAT(actual, HasSubstr("labels.label-key-2=label-value-2"));
 
   // lifecycle()
   EXPECT_THAT(actual, HasSubstr("age=30"));
@@ -376,6 +386,12 @@ TEST(BucketMetadataTest, ToJsonString) {
   EXPECT_TRUE(actual["cors"].is_array()) << actual;
   EXPECT_EQ(2, actual["cors"].size()) << actual;
   EXPECT_EQ(3600, actual["cors"][0].value("maxAgeSeconds", 0));
+
+  // custom_placement_config()
+  ASSERT_TRUE(actual.contains("customPlacementConfig"));
+  auto const expected_custom_placement_config = nlohmann::json{
+      {"dataLocations", std::vector<std::string>{"US-EAST1", "US-WEST1"}}};
+  EXPECT_EQ(actual["customPlacementConfig"], expected_custom_placement_config);
 
   // default_event_based_hold()
   ASSERT_EQ(1U, actual.count("defaultEventBasedHold"));
@@ -574,6 +590,30 @@ TEST(BucketMetadataTest, SetCors) {
   copy.set_cors(std::move(cors));
   EXPECT_NE(expected, copy);
   EXPECT_EQ("Content-Encoding", copy.cors().at(0).response_header.back());
+}
+
+/// @test Verify we can change the CustomPlacementConfig.
+TEST(BucketMetadataTest, SetCustomPlacementConfig) {
+  auto const expected = CreateBucketMetadataForTest();
+  auto copy = expected;
+  ASSERT_TRUE(copy.has_custom_placement_config());
+  auto config = copy.custom_placement_config();
+  ASSERT_EQ(2, config.data_locations.size());
+  std::swap(config.data_locations[0], config.data_locations[1]);
+  ASSERT_NE(copy.custom_placement_config(), config);
+
+  copy.set_custom_placement_config(config);
+  EXPECT_NE(expected, copy);
+  EXPECT_EQ(copy.custom_placement_config(), config);
+}
+
+/// @test Verify we can change the CustomPlacementConfig.
+TEST(BucketMetadataTest, ResetCustomPlacementConfig) {
+  auto const expected = CreateBucketMetadataForTest();
+  auto copy = expected;
+  ASSERT_TRUE(copy.has_custom_placement_config());
+  copy.reset_custom_placement_config();
+  EXPECT_NE(expected, copy);
 }
 
 /// @test Verify we can change the default event based hold in BucketMetadata.

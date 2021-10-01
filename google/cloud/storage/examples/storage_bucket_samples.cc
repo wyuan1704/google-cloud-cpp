@@ -497,6 +497,48 @@ void GetRpo(google::cloud::storage::Client client,
   (std::move(client), argv.at(0));
 }
 
+void CreateBucketCustomDualRegion(google::cloud::storage::Client client,
+                                  std::vector<std::string> const& argv) {
+  // [START storage_create_bucket_custom_dual_region]
+  namespace gcs = ::google::cloud::storage;
+  using ::google::cloud::StatusOr;
+  [](gcs::Client client, std::string const& bucket_name) {
+    auto bucket = client.CreateBucket(
+        bucket_name, gcs::BucketMetadata().set_custom_placement_config(
+                         gcs::CustomPlacementConfig{
+                             /*.data_locations=*/{"US-EAST1", "US-WEST1"}}));
+    if (!bucket) throw std::runtime_error(bucket.status().message());
+
+    std::cout << "Created bucket " << bucket->name()
+              << " with a custom placement config "
+              << bucket->custom_placement_config() << ".\n";
+  }
+  // // [END storage_create_bucket_custom_dual_region]
+  (std::move(client), argv.at(0));
+}
+
+void GetBucketCustomDualRegion(google::cloud::storage::Client client,
+                               std::vector<std::string> const& argv) {
+  // [START storage_get_bucket_custom_dual_region]
+  namespace gcs = ::google::cloud::storage;
+  using ::google::cloud::StatusOr;
+  [](gcs::Client client, std::string const& bucket_name) {
+    auto metadata = client.GetBucketMetadata(
+        bucket_name);
+    if (!metadata) throw std::runtime_error(metadata.status().message());
+
+    if (!metadata->has_custom_placement_config()) {
+      std::cout << "Bucket " << metadata->name() << " does not have a custom placement configuration\n";
+      return;
+    }
+    std::cout << "Bucket " << metadata->name()
+              << " is configured to use the locations in "
+              << metadata->custom_placement_config() << ".\n";
+  }
+  // // [END storage_get_bucket_custom_dual_region]
+  (std::move(client), argv.at(0));
+}
+
 void AddBucketLabel(google::cloud::storage::Client client,
                     std::vector<std::string> const& argv) {
   //! [add bucket label] [START storage_add_bucket_label]
@@ -596,6 +638,7 @@ void RunAll(std::vector<std::string> const& argv) {
   auto generator = google::cloud::internal::DefaultPRNG(std::random_device{}());
   auto const bucket_name = examples::MakeRandomBucketName(generator);
   auto const rpo_bucket_name = examples::MakeRandomBucketName(generator);
+  auto const cdr_bucket_name = examples::MakeRandomBucketName(generator);
   auto client = gcs::Client();
 
   // This is the only example that cleans up stale buckets. The examples run in
@@ -662,6 +705,18 @@ void RunAll(std::vector<std::string> const& argv) {
 
   std::cout << "\nRunning SetRpoAsyncTurbo() example" << std::endl;
   SetRpoAsyncTurbo(client, {rpo_bucket_name});
+
+  std::cout << "\nRunning CreateBucketCustomDualRegion() example" << std::endl;
+  CreateBucketCustomDualRegion(client, {cdr_bucket_name});
+
+  std::cout << "\nRunning GetBucketCustomDualRegion() example [1]" << std::endl;
+  GetBucketCustomDualRegion(client, {cdr_bucket_name});
+
+  std::cout << "\nRunning GetBucketCustomDualRegion() example [2]" << std::endl;
+  GetBucketCustomDualRegion(client, {bucket_name});
+
+  std::cout << "\nRunning DeleteBucket() example [cdr]" << std::endl;
+  DeleteBucket(client, {cdr_bucket_name});
 
   std::cout << "\nRunning AddBucketLabel() example" << std::endl;
   AddBucketLabel(client, {bucket_name, "test-label", "test-label-value"});
@@ -747,6 +802,8 @@ int main(int argc, char* argv[]) {
       make_entry("set-rpo-default", {}, SetRpoDefault),
       make_entry("set-rpo-async-turn", {}, SetRpoAsyncTurbo),
       make_entry("get-rpo", {}, GetRpo),
+      make_entry("create-bucket-cdr", {}, CreateBucketCustomDualRegion),
+      make_entry("get-bucket-cdr", {}, GetBucketCustomDualRegion),
       make_entry("add-bucket-label", {"<label-key>", "<label-value>"},
                  AddBucketLabel),
       make_entry("get-bucket-labels", {}, GetBucketLabels),

@@ -104,6 +104,31 @@ Status ParseCorsList(std::vector<CorsEntry>& list, nlohmann::json const& json) {
   return Status{};
 }
 
+Status ParseCustomPlacementConfig(absl::optional<CustomPlacementConfig>& config,
+                                  nlohmann::json const& json) {
+  if (!json.contains("customPlacementConfig")) return Status{};
+  auto const& placement = json["customPlacementConfig"];
+  if (!placement.is_object())
+    return Status{StatusCode::kInvalidArgument,
+                  "customPlacementConfig is not an object"};
+  if (!placement.contains("dataLocations")) return Status{};
+  if (!placement["dataLocations"].is_array()) {
+    return Status{StatusCode::kInvalidArgument,
+                  "customPlacementConfig.dataLocations is not an array"};
+  }
+  CustomPlacementConfig c;
+  for (auto const& v : placement["dataLocations"]) {
+    if (!v.is_string()) {
+      return Status{
+          StatusCode::kInvalidArgument,
+          "customPlacementConfig.dataLocations should only contain strings"};
+    }
+    c.data_locations.push_back(v.get_ref<std::string const&>());
+  }
+  config = std::move(c);
+  return Status{};
+}
+
 Status ParseDefaultEventBasedHold(bool& default_event_based_hold,
                                   nlohmann::json const& json) {
   if (json.contains("defaultEventBasedHold")) {
@@ -276,6 +301,14 @@ void ToJsonBilling(nlohmann::json& json, BucketMetadata const& meta) {
   };
 }
 
+void ToJsonCustomPlacementConfig(nlohmann::json& json,
+                                 BucketMetadata const& meta) {
+  if (!meta.has_custom_placement_config()) return;
+  json["customPlacementConfig"] = nlohmann::json{
+      {"dataLocations", meta.custom_placement_config().data_locations},
+  };
+}
+
 void ToJsonDefaultEventBasedHold(nlohmann::json& json,
                                  BucketMetadata const& meta) {
   json["defaultEventBasedHold"] = meta.default_event_based_hold();
@@ -429,6 +462,9 @@ StatusOr<BucketMetadata> BucketMetadataParser::FromJson(
         return ParseCorsList(meta.cors_, json);
       },
       [](BucketMetadata& meta, nlohmann::json const& json) {
+        return ParseCustomPlacementConfig(meta.custom_placement_config_, json);
+      },
+      [](BucketMetadata& meta, nlohmann::json const& json) {
         return ParseDefaultEventBasedHold(meta.default_event_based_hold_, json);
       },
       [](BucketMetadata& meta, nlohmann::json const& json) {
@@ -495,6 +531,7 @@ std::string BucketMetadataToJsonString(BucketMetadata const& meta) {
   ToJsonAcl(json, meta);
   ToJsonBilling(json, meta);
   ToJsonCors(json, meta);
+  ToJsonCustomPlacementConfig(json, meta);
   ToJsonDefaultEventBasedHold(json, meta);
   ToJsonDefaultAcl(json, meta);
   ToJsonEncryption(json, meta);

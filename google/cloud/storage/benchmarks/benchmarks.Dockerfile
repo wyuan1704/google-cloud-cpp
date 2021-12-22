@@ -23,7 +23,7 @@ RUN apt-get update && \
 RUN apt-get update && apt-get --no-install-recommends install -y ninja-build
 
 WORKDIR /var/tmp/build/abseil-cpp
-RUN curl -sSL https://github.com/abseil/abseil-cpp/archive/20210324.2.tar.gz | \
+RUN curl -sSL https://github.com/abseil/abseil-cpp/archive/20211102.0.tar.gz | \
     tar -xzf - --strip-components=1 && \
     sed -i 's/^#define ABSL_OPTION_USE_\(.*\) 2/#define ABSL_OPTION_USE_\1 0/' "absl/base/options.h" && \
     cmake \
@@ -36,7 +36,7 @@ RUN curl -sSL https://github.com/abseil/abseil-cpp/archive/20210324.2.tar.gz | \
     cmake --install .build
 
 WORKDIR /var/tmp/build/protobuf
-RUN curl -sSL https://github.com/google/protobuf/archive/v3.17.3.tar.gz | \
+RUN curl -sSL https://github.com/google/protobuf/archive/v3.19.1.tar.gz | \
     tar -xzf - --strip-components=1 && \
     cmake \
         -DCMAKE_BUILD_TYPE=Release \
@@ -47,7 +47,7 @@ RUN curl -sSL https://github.com/google/protobuf/archive/v3.17.3.tar.gz | \
     cmake --install .build
 
 WORKDIR /var/tmp/build/grpc
-RUN curl -sSL https://github.com/grpc/grpc/archive/v1.38.1.tar.gz | \
+RUN curl -sSL https://github.com/grpc/grpc/archive/v1.43.0.tar.gz | \
     tar -xzf - --strip-components=1 && \
     cmake \
         -DCMAKE_BUILD_TYPE=Release \
@@ -66,7 +66,7 @@ RUN curl -sSL https://github.com/grpc/grpc/archive/v1.38.1.tar.gz | \
     cmake --install .build
 
 WORKDIR /var/tmp/build/crc32c
-RUN curl -sSL https://github.com/google/crc32c/archive/1.1.0.tar.gz | \
+RUN curl -sSL https://github.com/google/crc32c/archive/1.1.2.tar.gz | \
     tar -xzf - --strip-components=1 && \
     cmake \
         -DCMAKE_BUILD_TYPE=Release \
@@ -93,7 +93,7 @@ RUN curl -sSL https://github.com/google/googletest/archive/release-1.10.0.tar.gz
     tar -xzf - --strip-components=1 && \
     cmake \
       -DCMAKE_BUILD_TYPE="Release" \
-      -DBUILD_SHARED_LIBS=yes \
+      -DBUILD_SHARED_LIBS=OFF \
       -S . -B .build -GNinja && \
     cmake --build .build && \
     cmake --install .build
@@ -103,7 +103,7 @@ RUN curl -sSL https://github.com/google/benchmark/archive/v1.5.3.tar.gz | \
     tar -xzf - --strip-components=1 && \
     cmake \
         -DCMAKE_BUILD_TYPE="Release" \
-        -DBUILD_SHARED_LIBS=yes \
+        -DBUILD_SHARED_LIBS=OFF \
         -DBENCHMARK_ENABLE_TESTING=OFF \
       -S . -B .build -GNinja && \
     cmake --build .build && \
@@ -134,6 +134,6 @@ RUN apt-get update && \
 RUN apt-get update && apt-get upgrade -y
 
 WORKDIR /r
-COPY --from=build /var/tmp/build/google-cloud-cpp/.build/google/cloud/storage/benchmarks/*_benchmark /r
-COPY --from=build /var/tmp/build/google-cloud-cpp/.build/google/cloud/storage/benchmarks/create_dataset /r
-COPY --from=build /var/tmp/build/dp_check /r
+COPY --from=build /var/tmp/build/google-cloud-cpp/.build/google/cloud/storage/benchmarks/*_benchmark /r/
+COPY --from=build /var/tmp/build/google-cloud-cpp/.build/google/cloud/storage/benchmarks/create_dataset /r/
+COPY --from=build /var/tmp/build/dp_check /r/

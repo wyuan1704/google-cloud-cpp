@@ -14,11 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Usage: create-benchmark-vms.sh [options] zones
+# Usage: create-benchmark-vms.sh [options] name:zone [name:zone ...]
 #
 #   Options:
 #     --project=<project-id>     The ID (or number) of the project
-#     --vm-name=<name>           The name of the VM created in each zone
 #     --vm-type=<mtype>          The VM machine type
 #     --image-family=<family>    The VM image family to baseline from
 #     -h|--help                  Print this help message
@@ -34,23 +33,18 @@ function print_usage() {
 # Use getopt to parse and normalize all the args.
 PARSED="$(getopt -a \
   --options="h" \
-  --longoptions="project:,vm-name:,vm-type:,image-family:,help" \
+  --longoptions="project:,vm-type:,image-family:,help" \
   --name="$(basename "$0")" \
   -- "$@")"
 eval set -- "${PARSED}"
 
 GOOGLE_CLOUD_PROJECT=""
-VM_NAME="cloud-cpp-bm-01"
 VM_TYPE="c2-standard-16"
 IMAGE_FAMILY="cos-stable"
 while true; do
   case "$1" in
   --project)
     GOOGLE_CLOUD_PROJECT="$2"
-    shift 2
-    ;;
-  --vm-name)
-    VM_NAME="$2"
     shift 2
     ;;
   --vm-type)
@@ -78,7 +72,7 @@ if [[ $# -eq 0 ]]; then
   exit 1
 fi
 
-ZONES=("${@}")
+VM_DESCRIPTORS=("${@}")
 
 SOURCE_IMAGE=$(gcloud compute images list --filter="family:${IMAGE_FAMILY}" --format='value(name)')
 readonly SOURCE_IMAGE
@@ -156,17 +150,19 @@ COMMON_INSTANCE_FLAGS=(
 )
 readonly COMMON_INSTANCE_FLAGS
 
-for zone in "${ZONES[@]}"; do
-  if gcloud compute instances describe "${VM_NAME}" \
+for desc in "${VM_DESCRIPTORS[@]}"; do
+  name="${desc%%:*}"
+  zone="${desc##*:}"
+  if gcloud compute instances describe "${name}" \
     --project="${GOOGLE_CLOUD_PROJECT}" \
     --zone="${zone}" >/dev/null 2>&1; then
-    echo "vm (${VM_NAME}) already exists in zone ${zone}"
+    echo "vm (${name}) already exists in zone ${zone}"
   else
-    echo "Creating instance ${VM_NAME} in zone ${zone} (machine type = ${VM_TYPE})"
-    gcloud beta compute instances create "${VM_NAME}" \
+    echo "Creating instance ${name} in zone ${zone} (machine type = ${VM_TYPE})"
+    gcloud beta compute instances create "${name}" \
       --zone="${zone}" \
       "${COMMON_INSTANCE_FLAGS[@]}" \
-      --boot-disk-device-name="${VM_NAME}" \
+      --boot-disk-device-name="${name}" \
       --metadata-from-file user-data=<(
         cat <<__EOF__
 #cloud-config
@@ -201,16 +197,18 @@ __EOF__
   fi
 done
 
-for zone in "${ZONES[@]}"; do
-  echo "Fetching host keys ${VM_NAME}"
-  id=$(gcloud compute instances describe "${VM_NAME}" \
+for desc in "${VM_DESCRIPTORS[@]}"; do
+  echo "Fetching host keys for ${desc}"
+  name="${desc%%:*}"
+  zone="${desc##*:}"
+  id=$(gcloud compute instances describe "${name}" \
     --project="${GOOGLE_CLOUD_PROJECT}" \
     --zone="${zone}" \
     --format='value(id)')
   set +e
   delay=1
   for _ in $(seq 1 8); do
-    if read -r key < <(gcloud compute instances get-guest-attributes "${VM_NAME}" \
+    if read -r key < <(gcloud compute instances get-guest-attributes "${name}" \
       --project="${GOOGLE_CLOUD_PROJECT}" \
       --zone="${zone}" \
       --query-path=hostkeys/ssh-rsa \
@@ -223,8 +221,8 @@ for zone in "${ZONES[@]}"; do
   done
   set -e
   echo "compute.${id} ssh-rsa ${key}" >>"${HOME}/.ssh/google_compute_known_hosts"
-  echo "Enabling GCR on ${VM_NAME}"
-  gcloud compute ssh --project="${GOOGLE_CLOUD_PROJECT}" --zone="${zone}" "${VM_NAME}" \
+  echo "Enabling GCR on ${name}"
+  gcloud compute ssh --project="${GOOGLE_CLOUD_PROJECT}" --zone="${zone}" "${name}" \
     -- -o 'ProxyCommand=corp-ssh-helper %h %p' docker-credential-gcr configure-docker </dev/null || true
 done
 

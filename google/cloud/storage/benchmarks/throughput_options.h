@@ -41,6 +41,8 @@ struct ThroughputOptions {
   std::size_t read_quantum = 1 * kMiB;
   std::int32_t minimum_sample_count = 0;
   std::int32_t maximum_sample_count = std::numeric_limits<std::int32_t>::max();
+  int grpc_channel_count = 1;
+  std::vector<std::string> grpc_plugin_config = {"none", "dp"};
   std::vector<ApiName> enabled_apis = {
       ApiName::kApiJson,
       ApiName::kApiXml,

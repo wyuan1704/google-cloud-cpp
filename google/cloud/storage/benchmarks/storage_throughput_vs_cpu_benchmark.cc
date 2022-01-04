@@ -18,6 +18,7 @@
 #include "google/cloud/storage/benchmarks/throughput_result.h"
 #include "google/cloud/storage/client.h"
 #include "google/cloud/storage/grpc_plugin.h"
+#include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/absl_str_join_quiet.h"
 #include "google/cloud/internal/build_info.h"
 #include "google/cloud/internal/format_time_point.h"
@@ -127,10 +128,19 @@ int main(int argc, char* argv[]) {
   auto client_options =
       google::cloud::Options{}.set<gcs::ProjectIdOption>(options->project_id);
   auto rest_client = gcs::Client(client_options);
+  std::map<std::string, gcs::Client> grpc_clients;
 #if GOOGLE_CLOUD_CPP_STORAGE_HAVE_GRPC
-  auto grpc_client = DefaultGrpcClient(client_options);
+  auto channels = options->grpc_channel_count;
+  if (channels == 0) channels = (std::max)(options->thread_count / 4, 4);
+  for (auto const& config : options->grpc_plugin_config) {
+    auto client = DefaultGrpcClient(google::cloud::Options(client_options).set<google::cloud::storage_experimental::GrpcPluginOption>(
+                                                             config));
+    grpc_clients.emplace(config, std::move(client));
+  }
 #else
-  auto grpc_client = rest_client;
+  for (auto const& config : options->grpc_plugin_config) {
+    grpc_clients.emplace(config, rest_client);
+  }
 #endif  // GOOGLE_CLOUD_CPP_STORAGE_HAVE_GRPC
 
   auto generator = google::cloud::internal::DefaultPRNG(std::random_device{}());
@@ -210,7 +220,7 @@ int main(int argc, char* argv[]) {
   gcs_bm::ExperimentCounters counters;
   for (int i = 0; i != options->thread_count; ++i) {
     tasks.emplace_back(std::async(std::launch::async, RunThread, *options,
-                                  rest_client, grpc_client, bucket_name, i));
+                                  rest_client, grpc_clients, bucket_name, i));
   }
   for (auto& f : tasks) {
     auto results = f.get();

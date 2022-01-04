@@ -162,8 +162,8 @@ function start_benchmark_instance {
   ssh -A -o "ProxyCommand=corp-ssh-helper %h %p" "${host}.${ZONE}.${PROJECT}" \
     docker run \
       --network=host --pull always --rm \
-      --env CLOUD_STORAGE_ENABLE_TRACING="raw-client" \
-      --env GOOGLE_CLOUD_CPP_EXPERIMENTAL_LOG_CONFIG="lastN,128000,WARNING" \
+      --env XCLOUD_STORAGE_ENABLE_TRACING="raw-client" \
+      --env XGOOGLE_CLOUD_CPP_EXPERIMENTAL_LOG_CONFIG="lastN,128000,WARNING" \
       gcr.io/p3rf-gcs/cloud-cpp-storage-benchmarks:latest \
       /r/aggregate_download_throughput_benchmark \
         --client-per-thread="true" \

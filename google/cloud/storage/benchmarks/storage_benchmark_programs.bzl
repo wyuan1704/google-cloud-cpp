@@ -24,4 +24,5 @@ storage_benchmark_programs = [
     "storage_parallel_uploads_benchmark.cc",
     "storage_throughput_vs_cpu_benchmark.cc",
     "throughput_experiment_test.cc",
+    "validate_google_direct_access.cc",
 ]

@@ -16,7 +16,9 @@
 #include "google/cloud/storage/client.h"
 #include "google/cloud/storage/internal/grpc_client.h"
 #include "google/cloud/storage/internal/storage_stub_factory.h"
+#include "google/cloud/grpc_error_delegate.h"
 #include "google/cloud/testing_util/command_line_parsing.h"
+#include <google/storage/v2/storage.grpc.pb.h>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -35,17 +37,45 @@ namespace gcs = ::google::cloud::storage;
 namespace g = ::google::cloud;
 namespace v2 = ::google::storage::v2;
 
-int main(int argc, char* argv[]) try {
-  auto const options = ParseCommandLine({argv, argv + argc});
+void TestWithGrpc(DirectAccessOptions const& options) {
+  // Use gRPC to read an object, without any fancy wrappers.
+  grpc::ChannelArguments args;
+  auto channel = grpc::CreateChannel(options.grpc_endpoint,
+                                     grpc::GoogleDefaultCredentials());
+  auto stub = google::storage::v2::Storage::NewStub(std::move(channel));
+  grpc::ClientContext context;
+  v2::ReadObjectRequest request;
+  request.set_bucket("projects/_/buckets/" + options.bucket_name);
+  request.set_object(options.object_name);
+  auto reader = stub->ReadObject(&context, request);
+  while (true) {
+    v2::ReadObjectResponse response;
+    auto success = reader->Read(&response);
+    if (!success) {
+      auto status = reader->Finish();
+      std::cout << "stream status=" << g::MakeStatusFromRpcError(status) << "\n";
+      break;
+    }
+    if (response.has_metadata()) {
+      std::cout << "Object metadata=" << response.metadata().DebugString() << "\n";
+    }
+  }
+  std::cout << "Call initial metadata\n";
+  std::cout << "peer: " << context.peer() << "\n";
+  for (auto const& kv : context.GetServerInitialMetadata()) {
+    std::cout << kv.first << ": " << kv.second << "\n";
 
-  std::cout << "Use REST to verify the object exists\n";
-  auto client =
-      gcs::Client(g::Options{}.set<g::TracingComponentsOption>({"raw-client"}));
-  auto metadata =
-      client.GetObjectMetadata(options.bucket_name, options.object_name)
-          .value();
-  std::cout << "REST response=" << metadata << "\n";
+  }
+  std::cout << "Call trailing metadata\n";
+  for (auto const& kv : context.GetServerTrailingMetadata()) {
+    std::cout << kv.first << ": " << kv.second << "\n";
+  }
+}
 
+void TestWithWrappedGrpc(DirectAccessOptions const& options) {
+  // Use the lowest layer of wrappers in the C++ client library to read an
+  // object. This is not intended for use by customers, it is here just for
+  // troubleshooting.
   g::CompletionQueue cq;
   auto stub = google::cloud::storage_internal::CreateStorageStub(
       cq, google::cloud::storage::internal::DefaultOptionsGrpc(
@@ -69,14 +99,33 @@ int main(int argc, char* argv[]) try {
     }
     auto value = absl::get<v2::ReadObjectResponse>(std::move(v));
     if (value.has_metadata()) {
-      std::cout << "gRPC metadata=" << value.metadata().DebugString() << "\n";
+      std::cout << "Object metadata=" << value.metadata().DebugString() << "\n";
     }
   }
 
-  std::cout << "gRPC call metadata\n";
+  std::cout << "Call metadata\n";
   for (auto const& kv : stream->GetRequestMetadata()) {
     std::cout << kv.first << ": " << kv.second << "\n";
   }
+}
+
+int main(int argc, char* argv[]) try {
+  auto const options = ParseCommandLine({argv, argv + argc});
+
+  std::cout << "Use REST to verify the object exists\n";
+  auto client =
+      gcs::Client(g::Options{}.set<g::TracingComponentsOption>({"raw-client"}));
+  auto metadata =
+      client.GetObjectMetadata(options.bucket_name, options.object_name)
+          .value();
+  std::cout << "REST response=" << metadata << "\n";
+
+  std::cout << "Starting gRPC test\n";
+  TestWithGrpc(options);
+  std::cout << "gRPC test DONE\n";
+  std::cout << "\n\n\nStarting Wrapped gRPC test\n";
+  TestWithWrappedGrpc(options);
+  std::cout << "Wrapped gRPC test DONE\n";
 
   return 0;
 } catch (std::exception const& ex) {

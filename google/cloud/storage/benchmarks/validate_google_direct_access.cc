@@ -50,6 +50,7 @@ int main(int argc, char* argv[]) try {
   auto stub = google::cloud::storage_internal::CreateStorageStub(
       cq, google::cloud::storage::internal::DefaultOptionsGrpc(
               g::Options{}
+                  .set<g::TracingComponentsOption>({"rpc", "rpc-streams"})
                   .set<g::UnifiedCredentialsOption>(
                       g::MakeGoogleDefaultCredentials())
                   .set<g::EndpointOption>(options.grpc_endpoint)));

@@ -129,7 +129,7 @@ void TestWithClientLibrary(DirectAccessOptions const& options) {
             << ", storage_class=" << stream.storage_class().value_or("unknown")
             << "\n";
 
-  std::cout << "Call 'headers''\n";
+  std::cout << "Call 'headers'\n";
   for (auto const& kv : stream.headers()) {
     std::cout << kv.first << ": " << kv.second << "\n";
   }

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #if GOOGLE_CLOUD_CPP_STORAGE_HAVE_GRPC
-#include "google/cloud/storage/client.h"
+#include "google/cloud/storage/grpc_plugin.h"
 #include "google/cloud/storage/internal/grpc_client.h"
 #include "google/cloud/storage/internal/storage_stub_factory.h"
 #include "google/cloud/grpc_error_delegate.h"
@@ -53,18 +53,19 @@ void TestWithGrpc(DirectAccessOptions const& options) {
     auto success = reader->Read(&response);
     if (!success) {
       auto status = reader->Finish();
-      std::cout << "stream status=" << g::MakeStatusFromRpcError(status) << "\n";
+      std::cout << "stream status=" << g::MakeStatusFromRpcError(status)
+                << "\n";
       break;
     }
     if (response.has_metadata()) {
-      std::cout << "Object metadata=" << response.metadata().DebugString() << "\n";
+      std::cout << "Object metadata=" << response.metadata().DebugString()
+                << "\n";
     }
   }
   std::cout << "Call initial metadata\n";
   std::cout << "peer: " << context.peer() << "\n";
   for (auto const& kv : context.GetServerInitialMetadata()) {
     std::cout << kv.first << ": " << kv.second << "\n";
-
   }
   std::cout << "Call trailing metadata\n";
   for (auto const& kv : context.GetServerTrailingMetadata()) {
@@ -109,6 +110,31 @@ void TestWithWrappedGrpc(DirectAccessOptions const& options) {
   }
 }
 
+void TestWithClientLibrary(DirectAccessOptions const& options) {
+  // Use the client library to read an object. This is not intended for use by
+  // customers, it is here just for troubleshooting.
+  auto client = google::cloud::storage_experimental::DefaultGrpcClient(
+      g::Options{}
+          .set<g::TracingComponentsOption>({"rpc", "rpc-streams"})
+          .set<g::UnifiedCredentialsOption>(g::MakeGoogleDefaultCredentials())
+          .set<g::EndpointOption>(options.grpc_endpoint));
+
+  auto stream = client.ReadObject(options.bucket_name, options.object_name);
+  auto contents = std::string{std::istreambuf_iterator<char>(stream), {}};
+  std::cout << "stream status=" << stream.status() << "\n";
+
+  std::cout << "Object metadata="
+            << "generation=" << stream.generation().value_or(0)
+            << ", metageneration=" << stream.metageneration().value_or(0)
+            << ", storage_class=" << stream.storage_class().value_or("unknown")
+            << "\n";
+
+  std::cout << "Call 'headers''\n";
+  for (auto const& kv : stream.headers()) {
+    std::cout << kv.first << ": " << kv.second << "\n";
+  }
+}
+
 int main(int argc, char* argv[]) try {
   auto const options = ParseCommandLine({argv, argv + argc});
 
@@ -123,8 +149,13 @@ int main(int argc, char* argv[]) try {
   std::cout << "Starting gRPC test\n";
   TestWithGrpc(options);
   std::cout << "gRPC test DONE\n";
+
   std::cout << "\n\n\nStarting Wrapped gRPC test\n";
   TestWithWrappedGrpc(options);
+  std::cout << "Wrapped gRPC test DONE\n";
+
+  std::cout << "\n\n\nStarting C++ client library test\n";
+  TestWithClientLibrary(options);
   std::cout << "Wrapped gRPC test DONE\n";
 
   return 0;

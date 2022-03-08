@@ -237,14 +237,18 @@ gcs_bm::ClientProvider MakeProvider(ThroughputOptions const& options) {
 #if GOOGLE_CLOUD_CPP_STORAGE_HAVE_GRPC
     using ::google::cloud::storage_experimental::DefaultGrpcClient;
     if (t == ExperimentTransport::kDirectPath) {
-      return DefaultGrpcClient(opts.set<gcs_ex::GrpcPluginOption>("media")
-                                   .set<google::cloud::EndpointOption>(
-                                       options.direct_path_endpoint));
+      return DefaultGrpcClient(
+          opts.set<gcs_ex::GrpcPluginOption>("media")
+              .set<google::cloud::EndpointOption>(options.direct_path_endpoint)
+              .set<google::cloud::TracingComponentsOption>(
+                  {"rpc", "rpc-streams"}));
     }
     if (t == ExperimentTransport::kGrpc) {
       return DefaultGrpcClient(
           opts.set<gcs_ex::GrpcPluginOption>("media")
-              .set<google::cloud::EndpointOption>(options.grpc_endpoint));
+              .set<google::cloud::EndpointOption>(options.grpc_endpoint)
+              .set<google::cloud::TracingComponentsOption>(
+                  {"rpc", "rpc-streams"}));
     }
 #else
     (void)t;  // disable unused parameter warning

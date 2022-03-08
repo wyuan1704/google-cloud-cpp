@@ -16,6 +16,7 @@
 #include "google/cloud/storage/benchmarks/benchmark_utils.h"
 #include "google/cloud/storage/client.h"
 #include "google/cloud/grpc_error_delegate.h"
+#include "google/cloud/log.h"
 #include "absl/algorithm/container.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_split.h"
@@ -161,6 +162,12 @@ class DownloadObject : public ThroughputExperiment {
       transfer_size += reader.gcount();
     }
     auto const usage = timer.Sample();
+    if (reader.status().code() == google::cloud::StatusCode::kDataLoss) {
+      GCP_LOG(ERROR) << "kDataLoss on gs://" << bucket_name << "/"
+                     << object_name << ", status=" << reader.status();
+      google::cloud::LogSink::Instance().Flush();
+      std::exit(1);
+    }
     return ThroughputResult{ExperimentLibrary::kCppClient,
                             transport_,
                             config.op,

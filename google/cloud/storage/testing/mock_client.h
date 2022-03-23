@@ -172,11 +172,7 @@ class MockResumableUploadSession
               (override));
   MOCK_METHOD(StatusOr<internal::ResumableUploadResponse>, ResetSession, (),
               (override));
-  MOCK_METHOD(std::uint64_t, next_expected_byte, (), (const, override));
   MOCK_METHOD(std::string const&, session_id, (), (const, override));
-  MOCK_METHOD(bool, done, (), (const, override));
-  MOCK_METHOD(StatusOr<internal::ResumableUploadResponse> const&, last_response,
-              (), (const, override));
 };
 
 class MockObjectReadSource : public internal::ObjectReadSource {

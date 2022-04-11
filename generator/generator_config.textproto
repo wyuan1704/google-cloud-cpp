@@ -1122,6 +1122,79 @@ service {
   retryable_status_codes: ["kUnavailable"]
 }
 
+# SQL Admin
+service {
+  service_proto_path: "google/cloud/sql/v1/cloud_sql_backup_runs.proto"
+  product_path: "google/cloud/sqladmin"
+  initial_copyright_year: "2022"
+  retryable_status_codes: ["kUnavailable"]
+}
+
+service {
+  service_proto_path: "google/cloud/sql/v1/cloud_sql_connect.proto"
+  product_path: "google/cloud/sqladmin"
+  initial_copyright_year: "2022"
+  retryable_status_codes: ["kUnavailable"]
+}
+
+service {
+  service_proto_path: "google/cloud/sql/v1/cloud_sql_databases.proto"
+  product_path: "google/cloud/sqladmin"
+  initial_copyright_year: "2022"
+  retryable_status_codes: ["kUnavailable"]
+}
+
+service {
+  service_proto_path: "google/cloud/sql/v1/cloud_sql_flags.proto"
+  product_path: "google/cloud/sqladmin"
+  initial_copyright_year: "2022"
+  retryable_status_codes: ["kUnavailable"]
+}
+
+service {
+  service_proto_path: "google/cloud/sql/v1/cloud_sql_instance_names.proto"
+  product_path: "google/cloud/sqladmin"
+  initial_copyright_year: "2022"
+  retryable_status_codes: ["kUnavailable"]
+}
+
+service {
+  service_proto_path: "google/cloud/sql/v1/cloud_sql_instances.proto"
+  product_path: "google/cloud/sqladmin"
+  initial_copyright_year: "2022"
+  retryable_status_codes: ["kUnavailable"]
+}
+
+service {
+  service_proto_path: "google/cloud/sql/v1/cloud_sql_operations.proto"
+  product_path: "google/cloud/sqladmin"
+  initial_copyright_year: "2022"
+  retryable_status_codes: ["kUnavailable"]
+}
+
+service {
+  service_proto_path: "google/cloud/sql/v1/cloud_sql_ssl_certs.proto"
+  product_path: "google/cloud/sqladmin"
+  initial_copyright_year: "2022"
+  retryable_status_codes: ["kUnavailable"]
+}
+
+service {
+  service_proto_path: "google/cloud/sql/v1/cloud_sql_tiers.proto"
+  product_path: "google/cloud/sqladmin"
+  initial_copyright_year: "2022"
+  retryable_status_codes: ["kUnavailable"]
+}
+
+service {
+  service_proto_path: "google/cloud/sql/v1/cloud_sql_users.proto"
+  product_path: "google/cloud/sqladmin"
+  initial_copyright_year: "2022"
+  retryable_status_codes: ["kUnavailable"]
+}
+
+
+
 # Storage
 service {
   service_proto_path: "google/storage/v2/storage.proto"

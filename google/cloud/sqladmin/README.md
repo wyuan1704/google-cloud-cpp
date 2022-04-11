@@ -3,7 +3,8 @@
 :construction:
 
 This directory contains an idiomatic C++ client library for the
-[Cloud SQL Admin API][cloud-service-docs], a service to API for Cloud SQL database instance management
+[Cloud SQL Admin API][cloud-service-docs], a service for Cloud SQL database
+instance management.
 
 This library is **experimental**. Its APIs are subject to change without notice.
 
@@ -25,7 +26,7 @@ Please note that the Google Cloud C++ client libraries do **not** follow
   client library
 * Detailed header comments in our [public `.h`][source-link] files
 
-[cloud-service-docs]: https://cloud.google.com/sqladmin
+[cloud-service-docs]: https://cloud.google.com/sql
 [doxygen-link]: https://googleapis.dev/cpp/google-cloud-sqladmin/latest/
 [source-link]: https://github.com/googleapis/google-cloud-cpp/tree/main/google/cloud/sqladmin
 
@@ -38,7 +39,7 @@ this library.
 
 <!-- inject-quickstart-start -->
 ```cc
-#include "google/cloud/sqladmin/ EDIT HERE .h"
+#include "google/cloud/sqladmin/sql_instances_client.h"
 #include "google/cloud/project.h"
 #include <iostream>
 #include <stdexcept>
@@ -50,12 +51,25 @@ int main(int argc, char* argv[]) try {
   }
 
   namespace sqladmin = ::google::cloud::sqladmin;
-  auto client = sqladmin::Client(sqladmin::MakeConnection(/* EDIT HERE */));
+  auto client = sqladmin::SqlInstancesServiceClient(
+      sqladmin::MakeSqlInstancesServiceConnection());
 
   auto const project = google::cloud::Project(argv[1]);
-  for (auto r : client.List /*EDIT HERE*/ (project.FullName())) {
-    if (!r) throw std::runtime_error(r.status().message());
-    std::cout << r->DebugString() << "\n";
+  google::cloud::sql::v1::SqlInstancesListRequest request;
+  request.set_project(project.FullName());
+  auto page_token = std::string{};
+  while (true) {
+    request.set_page_token(page_token);
+    auto response = client.List(request);
+    if (!response) throw std::runtime_error(response.status().message());
+    for (auto const& w : response->warnings()) {
+      std::cout << "warning: " << w.DebugString() << "\n";
+    }
+    for (auto const& instance : response->items()) {
+      std::cout << instance.DebugString() << "\n";
+    }
+    if (response->next_page_token().empty()) break;
+    page_token = response->next_page_token();
   }
 
   return 0;

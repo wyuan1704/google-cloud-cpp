@@ -38,7 +38,7 @@ cc_library(
     deps = [
         "//:common",
         "//:grpc_utils",
-        "@com_google_googleapis//google/cloud/sql/v1:sqladmin_cc_grpc",
+        "@com_google_googleapis//google/cloud/sql/v1:sql_cc_grpc",
     ],
 )
 

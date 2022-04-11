@@ -21,6 +21,7 @@ exports_files([
 ])
 
 EXPERIMENTAL_LIBRARIES = [
+    "sqladmin",
     "dialogflow_cx",
     "dialogflow_es",
     "logging",

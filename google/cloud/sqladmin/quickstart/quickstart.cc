@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "google/cloud/sqladmin/ EDIT HERE .h"
+#include "google/cloud/sqladmin/sql_instances_client.h"
 #include "google/cloud/project.h"
 #include <iostream>
 #include <stdexcept>
@@ -24,12 +24,25 @@ int main(int argc, char* argv[]) try {
   }
 
   namespace sqladmin = ::google::cloud::sqladmin;
-  auto client = sqladmin::Client(sqladmin::MakeConnection(/* EDIT HERE */));
+  auto client = sqladmin::SqlInstancesServiceClient(
+      sqladmin::MakeSqlInstancesServiceConnection());
 
   auto const project = google::cloud::Project(argv[1]);
-  for (auto r : client.List /*EDIT HERE*/ (project.FullName())) {
-    if (!r) throw std::runtime_error(r.status().message());
-    std::cout << r->DebugString() << "\n";
+  google::cloud::sql::v1::SqlInstancesListRequest request;
+  request.set_project(argv[1]); // project.FullName());
+  auto page_token = std::string{};
+  while (true) {
+    request.set_page_token(page_token);
+    auto response = client.List(request);
+    if (!response) throw std::runtime_error(response.status().message());
+    for (auto const& w : response->warnings()) {
+      std::cout << "warning: " << w.DebugString() << "\n";
+    }
+    for (auto const& instance : response->items()) {
+      std::cout << instance.DebugString() << "\n";
+    }
+    if (response->next_page_token().empty()) break;
+    page_token = response->next_page_token();
   }
 
   return 0;

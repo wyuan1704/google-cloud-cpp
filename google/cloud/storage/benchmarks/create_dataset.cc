@@ -93,7 +93,14 @@ int main(int argc, char* argv[]) {
   std::cout << "Hello wanxin!" << std::endl;
   auto options = ParseArgs(argc, argv);
 
-  auto client = google::cloud::storage_experimental::DefaultGrpcClient();
+  auto client = google::cloud::storage_experimental::DefaultGrpcClient(
+      google::cloud::Options{}
+     // add options as with the REST implementation, if desired, configure Google Direct
+     // Access with:
+     .set<gcs_experimental::GrpcPluginOption>("media")
+     .set<google::cloud::EndpointOption>(
+         "google-c2p-experimental:///storage.googleapis.com");
+      );
   auto reader = client.ReadObject("gcs_dpwi_test", "quickstart-grpc.txt");
   if (!reader) {
     std::cerr << "Error reading object: " << reader.status() << "\n";

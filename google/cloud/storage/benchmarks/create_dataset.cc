@@ -89,6 +89,7 @@ void CreateObjects(gcs_bm::CreateDatasetOptions const& options,
 }  // namespace
 
 int main(int argc, char* argv[]) {
+  std::cout << "Hello wanxin!" << std::endl;
   auto options = ParseArgs(argc, argv);
   if (!options) {
     std::cerr << options.status() << "\n";

@@ -15,6 +15,7 @@
 #include "google/cloud/storage/benchmarks/bounded_queue.h"
 #include "google/cloud/storage/benchmarks/create_dataset_options.h"
 #include "google/cloud/storage/client.h"
+#include "google/cloud/storage/grpc_plugin.h"
 #include "google/cloud/internal/build_info.h"
 #include "google/cloud/internal/format_time_point.h"
 #include "google/cloud/internal/getenv.h"
@@ -91,6 +92,15 @@ void CreateObjects(gcs_bm::CreateDatasetOptions const& options,
 int main(int argc, char* argv[]) {
   std::cout << "Hello wanxin!" << std::endl;
   auto options = ParseArgs(argc, argv);
+
+  auto client = google::cloud::storage_experimental::DefaultGrpcClient();
+  auto reader = client.ReadObject("gcs_dpwi_test", "quickstart-grpc.txt");
+  if (!reader) {
+    std::cerr << "Error reading object: " << reader.status() << "\n";
+    return 1;
+  }
+  std::cout << "Read quickstart-grpc.txt" << "\n";
+
   if (!options) {
     std::cerr << options.status() << "\n";
     return 1;

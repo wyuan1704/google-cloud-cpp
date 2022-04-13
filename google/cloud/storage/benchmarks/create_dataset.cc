@@ -110,6 +110,7 @@ int main(int argc, char* argv[]) {
     return 1;
   }
   std::cout << "Read is OK" << "\n";
+  return 0;
 
 
   if (!options) {
